@@ -5,9 +5,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.preference.PreferenceManager;
-import android.util.DisplayMetrics;
 import android.view.Display;
-import android.view.WindowManager;
 
 import com.limelight.nvstream.jni.MoonBridge;
 
@@ -27,7 +25,6 @@ public class PreferenceConfiguration {
 
     private static final String LEGACY_RES_FPS_PREF_STRING = "list_resolution_fps";
     private static final String LEGACY_ENABLE_51_SURROUND_PREF_STRING = "checkbox_51_surround";
-    private static final String NATIVE_RES_MIGRATION_PREF_STRING = "native_resolution_migrated";
 
     static final String RESOLUTION_PREF_STRING = "list_resolution";
     static final String FPS_PREF_STRING = "list_fps";
@@ -257,31 +254,6 @@ public class PreferenceConfiguration {
             case 2160:
                 return RES_4K;
         }
-    }
-
-    /**
-     * 设备原生分辨率字符串，始终按横屏归一化（长边在前）。
-     *
-     * 客户端主要跑在 TV 上，串流也总是横屏显示，所以比例必须按横屏算。
-     * 若把竖屏手机的 1080x2340 原样请求过去，服务端就会编出一个竖向帧，
-     * 而播放器是横屏表面，结果只能缩放并留黑边。
-     */
-    public static String getNativeResolutionString(Context context) {
-        WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-        if (wm == null) {
-            return DEFAULT_RESOLUTION;
-        }
-
-        Display display = wm.getDefaultDisplay();
-        DisplayMetrics metrics = new DisplayMetrics();
-        display.getRealMetrics(metrics);
-
-        int width = Math.max(metrics.widthPixels, metrics.heightPixels);
-        int height = Math.min(metrics.widthPixels, metrics.heightPixels);
-        if (width <= 0 || height <= 0) {
-            return DEFAULT_RESOLUTION;
-        }
-        return width + "x" + height;
     }
 
     public static int getDefaultBitrate(String resString, String fpsString) {
@@ -541,27 +513,8 @@ public class PreferenceConfiguration {
                     .apply();
         }
         else {
-            // Use the new preference location.
-            //
-            // 默认用设备原生分辨率：服务端按请求的分辨率编码，只有两者一致，
-            // 客户端才能满屏且不裁内容。用户后来在设置里显式改过分辨率则以
-            // 用户的选择为准（由 NATIVE_RES_MIGRATION 一次性迁移标记区分）。
-            String resStr = prefs.getString(RESOLUTION_PREF_STRING, null);
-
-            // 一次性迁移：老版本把默认值 1280x720 写进了偏好，这里把它升级成
-            // 原生分辨率。用户如果之后自己选过别的分辨率，会再写一次偏好，
-            // 那时迁移标记已存在，不再覆盖。
-            if (!prefs.getBoolean(NATIVE_RES_MIGRATION_PREF_STRING, false)) {
-                if (resStr == null || resStr.equals(DEFAULT_RESOLUTION)) {
-                    resStr = getNativeResolutionString(context);
-                    prefs.edit().putString(RESOLUTION_PREF_STRING, resStr).apply();
-                }
-                prefs.edit().putBoolean(NATIVE_RES_MIGRATION_PREF_STRING, true).apply();
-            }
-            else if (resStr == null) {
-                resStr = getNativeResolutionString(context);
-                prefs.edit().putString(RESOLUTION_PREF_STRING, resStr).apply();
-            }
+            // Use the new preference location
+            String resStr = prefs.getString(RESOLUTION_PREF_STRING, PreferenceConfiguration.DEFAULT_RESOLUTION);
 
             // Convert legacy resolution strings to the new style
             if (!resStr.contains("x")) {
