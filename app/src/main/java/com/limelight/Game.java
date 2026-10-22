@@ -569,7 +569,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
         else {
-            // For regular displays, we always request landscape
+            // 常规屏幕：始终横屏。客户端主要是 TV，串流也总是横屏呈现，
+            // 竖屏方向的适配交给服务端做（按横屏比例铺满）。
             setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
         }
     }
